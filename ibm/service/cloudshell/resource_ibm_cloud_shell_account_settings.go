@@ -234,7 +234,6 @@ func resourceIBMCloudShellAccountSettingsRead(context context.Context, d *schema
 	}
 
 	getAccountSettingsOptions.SetAccountID(parts[0])
-	getAccountSettingsOptions.SetAccountID(parts[1])
 
 	accountSettings, response, err := ibmCloudShellClient.GetAccountSettingsWithContext(context, getAccountSettingsOptions)
 	if err != nil {
@@ -359,55 +358,42 @@ func resourceIBMCloudShellAccountSettingsUpdate(context context.Context, d *sche
 	}
 
 	updateAccountSettingsOptions.SetAccountID(parts[0])
-	updateAccountSettingsOptions.SetAccountID(parts[1])
 
 	hasChange := false
+	updateAccountSettingsOptions.SetRev(d.Get("rev").(string))
+	updateAccountSettingsOptions.SetDefaultEnableNewFeatures(d.Get("default_enable_new_features").(bool))
+	updateAccountSettingsOptions.SetDefaultEnableNewRegions(d.Get("default_enable_new_regions").(bool))
+	updateAccountSettingsOptions.SetEnabled(d.Get("enabled").(bool))
+
+	var features []ibmcloudshellv1.Feature
+	for _, v := range d.Get("features").([]interface{}) {
+		value := v.(map[string]interface{})
+		featuresItem, err := ResourceIBMCloudShellAccountSettingsMapToFeature(value)
+		if err != nil {
+			return flex.DiscriminatedTerraformErrorf(err, err.Error(), "ibm_cloud_shell_account_settings", "delete", "parse-features").GetDiag()
+		}
+		features = append(features, *featuresItem)
+	}
+	updateAccountSettingsOptions.SetFeatures(features)
+
+	var regions []ibmcloudshellv1.RegionSetting
+	for _, v := range d.Get("regions").([]interface{}) {
+		value := v.(map[string]interface{})
+		regionsItem, err := ResourceIBMCloudShellAccountSettingsMapToRegionSetting(value)
+		if err != nil {
+			return flex.DiscriminatedTerraformErrorf(err, err.Error(), "ibm_cloud_shell_account_settings", "delete", "parse-regions").GetDiag()
+		}
+		regions = append(regions, *regionsItem)
+	}
+	updateAccountSettingsOptions.SetRegions(regions)
 
 	if d.HasChange("account_id") {
 		errMsg := fmt.Sprintf("Cannot update resource property \"%s\" with the ForceNew annotation."+
 			" The resource must be re-created to update this property.", "account_id")
 		return flex.DiscriminatedTerraformErrorf(nil, errMsg, "ibm_cloud_shell_account_settings", "delete", "account_id-forces-new").GetDiag()
 	}
-	if d.HasChange("rev") {
-		updateAccountSettingsOptions.SetRev(d.Get("rev").(string))
-		hasChange = true
-	}
-	if d.HasChange("default_enable_new_features") {
-		updateAccountSettingsOptions.SetDefaultEnableNewFeatures(d.Get("default_enable_new_features").(bool))
-		hasChange = true
-	}
-	if d.HasChange("default_enable_new_regions") {
-		updateAccountSettingsOptions.SetDefaultEnableNewRegions(d.Get("default_enable_new_regions").(bool))
-		hasChange = true
-	}
-	if d.HasChange("enabled") {
-		updateAccountSettingsOptions.SetEnabled(d.Get("enabled").(bool))
-		hasChange = true
-	}
-	if d.HasChange("features") {
-		var features []ibmcloudshellv1.Feature
-		for _, v := range d.Get("features").([]interface{}) {
-			value := v.(map[string]interface{})
-			featuresItem, err := ResourceIBMCloudShellAccountSettingsMapToFeature(value)
-			if err != nil {
-				return flex.DiscriminatedTerraformErrorf(err, err.Error(), "ibm_cloud_shell_account_settings", "delete", "parse-features").GetDiag()
-			}
-			features = append(features, *featuresItem)
-		}
-		updateAccountSettingsOptions.SetFeatures(features)
-		hasChange = true
-	}
-	if d.HasChange("regions") {
-		var regions []ibmcloudshellv1.RegionSetting
-		for _, v := range d.Get("regions").([]interface{}) {
-			value := v.(map[string]interface{})
-			regionsItem, err := ResourceIBMCloudShellAccountSettingsMapToRegionSetting(value)
-			if err != nil {
-				return flex.DiscriminatedTerraformErrorf(err, err.Error(), "ibm_cloud_shell_account_settings", "delete", "parse-regions").GetDiag()
-			}
-			regions = append(regions, *regionsItem)
-		}
-		updateAccountSettingsOptions.SetRegions(regions)
+
+	if d.HasChange("default_enable_new_features") || d.HasChange("default_enable_new_regions") || d.HasChange("enabled") || d.HasChange("features") || d.HasChange("regions") {
 		hasChange = true
 	}
 
@@ -424,32 +410,7 @@ func resourceIBMCloudShellAccountSettingsUpdate(context context.Context, d *sche
 }
 
 func resourceIBMCloudShellAccountSettingsDelete(context context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	ibmCloudShellClient, err := meta.(conns.ClientSession).IBMCloudShellV1()
-	if err != nil {
-		tfErr := flex.DiscriminatedTerraformErrorf(err, err.Error(), "ibm_cloud_shell_account_settings", "delete", "initialize-client")
-		log.Printf("[DEBUG]\n%s", tfErr.GetDebugMessage())
-		return tfErr.GetDiag()
-	}
-
-	updateAccountSettingsOptions := &ibmcloudshellv1.UpdateAccountSettingsOptions{}
-
-	parts, err := flex.SepIdParts(d.Id(), "/")
-	if err != nil {
-		return flex.DiscriminatedTerraformErrorf(err, err.Error(), "ibm_cloud_shell_account_settings", "delete", "sep-id-parts").GetDiag()
-	}
-
-	updateAccountSettingsOptions.SetAccountID(parts[0])
-	updateAccountSettingsOptions.SetAccountID(parts[1])
-
-	_, _, err = ibmCloudShellClient.UpdateAccountSettingsWithContext(context, updateAccountSettingsOptions)
-	if err != nil {
-		tfErr := flex.TerraformErrorf(err, fmt.Sprintf("UpdateAccountSettingsWithContext failed: %s", err.Error()), "ibm_cloud_shell_account_settings", "delete")
-		log.Printf("[DEBUG]\n%s", tfErr.GetDebugMessage())
-		return tfErr.GetDiag()
-	}
-
-	d.SetId("")
-
+	// Cloud Shell does not support delete of account settings subsequently delete is a no-op.
 	return nil
 }
 
